@@ -20,11 +20,12 @@
 #'
 #' @return tidy data frame for the given indicator.
 #'
+#' @importFrom magrittr %T>%
 #' @importFrom utils txtProgressBar
 #' @importFrom utils setTxtProgressBar
 #'
 #' @seealso [ineptR::get_dim_values()] can be used to identify the values to be passed to *dimN* parameters, in the variable categ_cod.
-#'  See \url{https://c-matos.github.io/ineptR/articles/use_cases.html}{this vignette} for further clarification on how to obtain only a subset of the data.
+#'  See \href{https://c-matos.github.io/ineptR/articles/use_cases.html}{this vignette} for further clarification on how to obtain only a subset of the data.
 #'
 #' @export
 #'
@@ -37,7 +38,7 @@
 #'              dim4 = c(1,19), dim5 = "TLES")
 #' }
 get_ine_data <- function(indicator, lang="PT", expected.duration=FALSE, max_cells = 30000, ...) {
-  dim_1 <- NULL
+  . <- dim_1 <- NULL
   #get the urls
   myurls <- get_api_urls(indicator, max_cells, ...)
 
@@ -50,9 +51,9 @@ get_ine_data <- function(indicator, lang="PT", expected.duration=FALSE, max_cell
 
   #start counters to estimate extraction duration
   if (expected.duration) {
-    pb <- txtProgressBar(min = 0, max = length(myurls), style = 3, width = round(getOption("width")/4)) #initialize progress bar
-    #start_time <- proc.time()
-    global_time <- proc.time()
+    progressr::handlers(global = T)
+    progressr::handlers("cli")
+    p <- progressr::progressor(along = myurls)
   }
 
   #!!!!!!!
@@ -60,62 +61,37 @@ get_ine_data <- function(indicator, lang="PT", expected.duration=FALSE, max_cell
     tibble::as_tibble() %>%
     dplyr::mutate(id = dplyr::row_number()) %>%
     purrr::pmap_dfr(function(...) {
-      current <- tibble::tibble(...)
-        # do stuff and access content from current row with "current"
+      current <- tibble::tibble(...) # do stuff and access content from current row with "current"
 
-      if (expected.duration) {
-        setTxtProgressBar(pb,current$id)
-        #aa <- sprintf("Extracting part %s of %s", current$id, length(myurls))
-
-        #last_execution_duration <- as.double(proc.time() - start_time)[[3]] # single execution duration
-
-        if (current$id!=1) {
-          est <- as.double(((proc.time() - global_time)[[3]])/current$id)
+        if (expected.duration) {
+          p(sprintf("Extracting %g", current$id))
         }
-        else {
-          est <- Inf
-          }
-
-        #expected remaining duration
-        remaining <- (length(myurls) - current$id) * est
-        cat(paste(sprintf(" // Output: %s of %s", current$id, length(myurls)),
-                  sprintf(" // Remaining: %.1f seconds", remaining),
-                  sep = ""))
-      }
 
       e <- new.env()
-      # return
-      ###
       req <- current$value %>%
         purrr::map(~httr2::request(base_url = .x) %>%
-              httr2::req_user_agent("ineptR (https://c-matos.github.io/ineptR/)") %>%
-              httr2::req_error(is_error = ~FALSE))
+                     httr2::req_user_agent("ineptR (https://c-matos.github.io/ineptR/)") %>%
+                     httr2::req_error(is_error = ~FALSE))
 
       resp <- req %>% purrr::map(gracefully_fail)
+
       if (is.null(resp)) {
         return(invisible(NULL))
       }
-      ####
-      resp2 <- resp %>%
-        purrr::map_df(~httr2::resp_body_json(.x) %>%
-              magrittr::extract2(1) %>%
-              magrittr::use_series("Dados") %T>%
-              {assign("temp_dim1", names(.), envir = e)} %>%
-              magrittr::extract2(1) %>%
-              purrr::map_dfr(data.frame) %>%
-              dplyr::mutate(dim_1 = e$temp_dim1))
-      resp2
+
+      resp[[1]] %>%
+        httr2::resp_body_json() %>%
+        magrittr::extract2(1) %>%
+        magrittr::use_series("Dados") %T>%
+        {assign("temp_dim1", names(.), envir = e)} %>%
+        magrittr::extract2(1) %>%
+        purrr::map_dfr(data.frame) %>%
+        dplyr::mutate(dim_1 = e$temp_dim1)
     }) %>%
     dplyr::relocate(dim_1, .before=1)
 
-  #rm(temp_dim1_01348531)
-  #rm(e)
-
-  #total duration
   if (expected.duration) {
-    cat(sprintf("Total duration: %.1f seconds", as.double(proc.time() - global_time)[[3]]))
-    close(pb)
+    progressr::handlers(global = F)
   }
   return(ret_data)
 }
-

@@ -116,7 +116,7 @@ get_api_urls <- function(indicator, max_cells=30000, lang="PT", ...) {
 
   # Check if parameters are named dimX, with max X being <= num_dims
   if (length(opt) - 3 > num_dims) {
-    stop(sprintf("You are trying to extract more dimensions than are available for indicator: %s (%s passed, %s allowed)", indicator, length(opt)-2, num_dims))
+    stop(sprintf("You are trying to extract more dimensions than are available for indicator: %s (%s passed, %s allowed)", indicator, length(opt)-3, num_dims))
   }
 
   #Check if any parameter is not in the form "dimN" (case insensitive)
@@ -196,12 +196,13 @@ get_api_urls <- function(indicator, max_cells=30000, lang="PT", ...) {
 }
 
 
-gracefully_fail <- function(request) {
+gracefully_fail <- function(request, path = NULL) {
   #Fails gracefully to comply with CRAN policy
+  #path is used to save directly to disk. Not being used
   try_GET <- function(request) {
     tryCatch(
       resp <- request %>%
-        httr2::req_perform(),
+        httr2::req_perform(path = path),
       error = function(e) conditionMessage(e),
       warning = function(w) conditionMessage(w)
     )

@@ -15,13 +15,19 @@
 #'         categ_cod, categ_dsg (Category description), categ_ord (order in which the category appears in the website),
 #'         categ_nivel (hierarchical order) and value_id (id row for this data frame) for the selected indicator.
 #' @importFrom magrittr %>%
-#' @importFrom rlang .data
 #' @export
 #'
 #' @examples
 #' get_dim_values("0011823")
 get_dim_values <- function(indicator, lang = "PT") {
-  if (is_indicator_valid(indicator)) {
+  value <- NULL
+  valid_ind <- is_indicator_valid(indicator)
+
+  if (is.null(valid_ind)) {
+    return(invisible(NULL))
+  }
+
+  if (valid_ind) {
 
     metadata <- get_metadata_raw(indicator = indicator, lang = lang)
 
@@ -33,22 +39,11 @@ get_dim_values <- function(indicator, lang = "PT") {
       magrittr::extract2("Dimensoes") %>%
       magrittr::extract2("Categoria_Dim") %>%
       tibble::as_tibble_col() %>%
-      tidyr::unnest_longer(col = .data$value) %>%
-      tidyr::unnest(.data$value) %>%
-      tidyr::unnest_wider(.data$value)
+      tidyr::unnest_longer(col = value) %>%
+      tidyr::unnest(value) %>%
+      tidyr::unnest_wider(value)
   } else {
-    metadata <- get_metadata_raw(indicator = indicator, lang = lang)
-
-    if (is.null(metadata)) {
-      return(invisible(NULL))
-    }
-
-    message(metadata %>%
-      magrittr::extract2("Sucesso") %>%
-      magrittr::use_series("Falso") %>%
-      magrittr::extract2(1) %>%
-      magrittr::use_series("Msg"))
-
+    message("(PT) O c\u00F3digo do indicador n\u00E3o existe. / (EN) The indicator code does not exist.")
     return(invisible(NULL))
   }
 }
